@@ -1,10 +1,20 @@
-from socket import socket, AF_INET, SOCK_DGRAM, SOCK_STREAM
+from socket import socket, gethostname
+from socket import AF_INET, SOCK_DGRAM, SOCK_STREAM
+import argparse
+
+""" TODO: instructions to use with argparse"""
 
 
 class Session:
 
     def __init__(self, udp_listener_port, target_host):
+
+        # initialize udp listener
         self.udp_listener_port = udp_listener_port
+        self.udp_listener_sock = socket(AF_INET, SOCK_DGRAM)
+        self.udp_listener_sock.bind((gethostname(), udp_listener_port))
+        print('listening on {}:{}'.format(gethostname(), self.udp_listener_port))
+
         self.target_host = target_host
         self.init_msg = bytes(
             'HELO {}\r\n'.format(self.udp_listener_port).encode('utf-8'))
@@ -29,7 +39,10 @@ class Session:
         # close connection
         self.tcp_sock.close()
         print(
-            'Clients UDP port: {} has been delivered.\nClosing TCP-socket..'.format(self.udp_listener_port))
+            'Clients UDP port: {} has been sent.\nClosing TCP-socket..'.format(self.udp_listener_port))
+
+    def start_udp_messaging():
+        pass
 
 
 if __name__ == '__main__':
