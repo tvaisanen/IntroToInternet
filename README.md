@@ -1,3 +1,3 @@
 # IntroToInternet
 
-Coursework for a introduction to interet.
+Coursework for a introduction to internet.
