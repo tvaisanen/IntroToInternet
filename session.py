@@ -42,10 +42,15 @@ class Session:
             'Clients UDP port: {} has been sent.\nClosing TCP-socket..'.format(self.udp_listener_port))
 
     def start_udp_messaging(self):
+        # init socket for sending udp packets
         self.udp_sender_sock = socket(AF_INET, SOCK_DGRAM)
         smalltalk = "Hello\r\n".encode('utf-8')
+
+        # send "hello" message to the server
         self.udp_sender_sock.sendto(smalltalk, (self.target_host, self.target_port))
         print('sent: "Hello\\r\\n".encode(\'utf-8\')')
+
+        # listen to the response
         print(self.udp_listener_sock.recvfrom(128))
 
 
