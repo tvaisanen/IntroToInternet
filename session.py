@@ -1,8 +1,8 @@
 from questions import answer, questions
-from socket import socket, gethostname
+from socket import socket, gethostname, getaddrinfo
 from socket import AF_INET, SOCK_DGRAM, SOCK_STREAM
 import argparse
-
+#import struct
 
 
 class Session:
@@ -12,7 +12,8 @@ class Session:
         # initialize udp listener
         self.udp_listener_port = udp_listener_port
         self.udp_listener_sock = socket(AF_INET, SOCK_DGRAM)
-        self.udp_listener_sock.bind(("", udp_listener_port))
+        self.udp_listener_sock.bind(('', udp_listener_port))
+        # self.udp_listener_sock.setblocking(0)
         print('listening on {}:{}'.format(
             gethostname(), self.udp_listener_port))
 
@@ -43,18 +44,33 @@ class Session:
         print(
             'Clients UDP port: {} has been sent.\nClosing TCP-socket..'.format(self.udp_listener_port))
 
+    def send_a_message(self, msg):
+        self.udp_sender_sock.sendto(msg, (self.target_host, self.target_port))
+
     def start_udp_messaging(self):
         # init socket for sending udp packets
         self.udp_sender_sock = socket(AF_INET, SOCK_DGRAM)
-        smalltalk = "Hello".encode('utf-8')
+        msg = "Ekki-ekki-ekki-ekki-PTANG".encode('utf-8')
 
         # send "hello" message to the server
-        self.udp_sender_sock.sendto(
-            smalltalk, (self.target_host, self.target_port))
+        self.send_a_message(msg)
+
         print('sent: "Hello\\r\\n".encode(\'utf-8\')')
 
         # listen to the response
-        print(self.udp_listener_sock.recvfrom(128))
+        while True:
+            print('listening..')
+            # for debugging purposes
+            # print(getaddrinfo(gethostname(),self.udp_listener_port))
+            try:
+                msg_received = self.udp_listener_sock.recvfrom(1024)[0].decode('utf-8')
+                print("Message received: {}".format(msg_received))
+                answer_to_question = answer(msg_received)
+                print("Answer to the question: {}.".format(answer_to_question))
+                self.send_a_message(answer_to_question.encode('utf-8'))
+
+            except BlockingIOError as e:
+                print(str(e))
 
 
 """ TODO: handle errors if there's no arguments given """
@@ -69,7 +85,7 @@ def handle_arguments():
     return args
 
 
-if __name__ == '__main__':  
+if __name__ == '__main__':
     args = handle_arguments()
     target_host = args.target_host
     udp_port = args.udp_port
