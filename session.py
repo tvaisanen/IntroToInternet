@@ -1,12 +1,85 @@
 from questions import answer
 from socket import socket, gethostname
-from socket import AF_INET, SOCK_DGRAM, SOCK_STREAM, INADDR_ANY, SOL_SOCKET, SO_BROADCAST
+from socket import AF_INET, SOCK_DGRAM, SOCK_STREAM, INADDR_ANY, SOL_SOCKET, SO_BROADCAST, SO_REUSEADDR
 import argparse
 # import struct
 
 """ TODO: Implementation of extra features, Proxy mode... """
 
-class Session:
+
+class Connections:
+
+    def __init__(self,target_host):
+
+        # local sockets
+        self.target_host = target_host
+        self.host_name = gethostname()
+        self.tcp_server_socket = socket(AF_INET, SOCK_STREAM)
+        self.udp_server_socket = socket(AF_INET, SOCK_DGRAM)
+
+        # clients data
+        self.client_tcp_socket = None
+        self.client_address = None
+        self.client_init_msg = None
+
+        #  available ports are scanned when binding
+        self.tcp_server_port = None
+        self.udp_server_port = None
+
+
+
+    def bind_tcp_server_socket(self):
+        """
+        scans ports 10000-10100
+        :return:
+        """
+        for port in range(100):
+            try:
+                tcp_port = 10000 + port
+                print("Binding TCP-server socket on {}:{}".format(self.host_name, tcp_port))
+                self.tcp_server_socket.bind((self.host_name, tcp_port))
+                self.tcp_server_port = tcp_port
+                break
+            except Exception as e:
+                print(str(e))
+
+    def bind_udp_server_socket(self):
+        """
+        scans ports 10000-10100
+        :return:
+        """
+        for port in range(100):
+            try:
+                udp_port = 10000 + port
+                print("Binding UDP-server socket on {}:{}".format(self.host_name, udp_port))
+                self.udp_server_socket.bind((str(INADDR_ANY), udp_port))
+                self.udp_server_port = udp_port
+                break
+            except Exception as e:
+                print(str(e))
+
+    def start_tcp_server(self):
+        """
+        start tcp server needed in proxy mode
+        :return:
+        """
+        # enable reuse address/port
+        self.tcp_server_socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+        print('Starting proxy service on {}:{}'.format(self.host_name,self.tcp_server_port))
+        self.tcp_server_socket.listen(1)
+        while True:
+            print('Waiting connections to be forwarded')
+            print(self.tcp_server_socket.type)
+            self.client_tcp_socket, self.client_address = self.tcp_server_socket.accept()
+            msg = self.client_tcp_socket.recv(1024).decode('utf-8')
+            if msg:
+                print('Received message: {} from {}'.format(msg, self.client_address))
+                self.client_init_msg = msg
+            self.client_tcp_socket.close()
+
+
+class ClientSession:
+    """ TODO: implement added Connection class here so things doesn't get confusing """
 
     def __init__(self, udp_listener_port, target_host):
         """
@@ -182,6 +255,32 @@ class Session:
                 print(str(e))
 
 
+class ProxySession:
+
+    """ TODO: WHOLE CLASS, implement Connection class here so things doesn't get confusing """
+    def __init__(self):
+        pass
+
+    def create_tcp_sockets(self):
+        pass
+
+    def create_udp_sockets(self):
+        pass
+
+    def forward_tcp_message(self):
+        pass
+
+    def handle_tcp_message(self, socket):
+        pass
+
+    def forward_udp_message(self):
+        pass
+
+    def handle_forwarding(self):
+        pass
+
+
+
 """ TODO: handle errors if there's no arguments given """
 
 
@@ -197,9 +296,20 @@ def handle_arguments():
     return args
 
 
+def test_clientsession():
+    session = ClientSession(udp_port, target_host)
+    session.start_udp_messaging()
+
+def test_connections():
+    conn = Connections(target_host)
+    conn.bind_tcp_server_socket()
+    conn.bind_udp_server_socket()
+    conn.start_tcp_server()
+
 if __name__ == '__main__':
     args = handle_arguments()
     target_host = args.target_host
     udp_port = args.udp_port
-    session = Session(udp_port, target_host)
-    session.start_udp_messaging()
+
+
+
