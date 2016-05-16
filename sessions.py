@@ -16,7 +16,7 @@ class Session:
             self.local_udp_port = local_udp_port
             self.host_address = host_address
             self.features = Features()
-            #self.add_features()
+            self.add_features()
             self.udp_server_socket = socket(AF_INET, SOCK_DGRAM)
             self.udp_client_socket = socket(AF_INET, SOCK_DGRAM)
             self.tcp_connection_socket = socket(AF_INET, SOCK_STREAM)
@@ -59,6 +59,8 @@ class Session:
                 data_remaining = unpacked_msg[3]
                 question = str(unpacked_msg[4].decode('utf-8'))
 
+                # TODO: looppa tässä jos content_length > 0
+
                 answer_to_question = answer(question)
                  # tell the user what's happening
                 print("----------------------------------------")
@@ -68,7 +70,7 @@ class Session:
                 # reply to the question
                 byte_answer = answer_to_question.encode('utf-8')
                 #self.host_address = ''
-                packed_answer = struct.pack('!??HH64s', True, True, len(byte_answer), 0, byte_answer)
+                packed_answer = struct.pack('!??HH64s', EOM, True, len(byte_answer), 0, byte_answer)
 
                 self.send_udp_message_to_host(packed_answer)
 
