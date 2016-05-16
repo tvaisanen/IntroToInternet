@@ -1,5 +1,8 @@
 from socket import socket, gethostname
 from socket import AF_INET, SOCK_DGRAM, SOCK_STREAM, INADDR_ANY, SOL_SOCKET, SO_BROADCAST, SO_REUSEADDR
+import errno
+
+
 
 
 class Connections:
@@ -10,7 +13,7 @@ class Connections:
         self.locally_reserved_ports = []
         self.host = host
         self.host_udp_port = None
-        self.local_host = gethostname()
+        self.localhost = ''
         self.tcp_server_socket = socket(AF_INET, SOCK_STREAM)
         self.tcp_client_socket = socket(AF_INET, SOCK_STREAM)
         self.udp_server_socket = socket(AF_INET, SOCK_DGRAM)
@@ -22,20 +25,21 @@ class Connections:
         self.client_init_msg = None
 
         # available ports are scanned when binding
-        self.tcp_server_port = self.scan_available_port_and_bind(self.tcp_server_socket, self.local_host)
+        self.tcp_server_port = self.scan_available_port_and_bind(self.tcp_server_socket, self.localhost)
         self.tcp_host_port = self.scan_available_port_and_bind(self.tcp_client_socket, self.host)
-        self.udp_server_port = self.scan_available_port_and_bind(self.udp_server_socket, self.local_host)
+        self.udp_server_port = self.scan_available_port_and_bind(self.udp_server_socket, self.localhost)
 
-    def scan_available_port_and_bind(self, sock, host):
+    def scan_available_port_and_bind(self, mode):
         """
         :param socket: socket to bind
         :param host:  host to bind the socket
+        :param mode: what mode to bind the socket
         :return: port
         """
         for port in range(100):
 
             port_to_try = 10000 + port
-            local = (host==self.local_host)
+            local = (host == self.localhost)
 
             if local:
                 if port_to_try in self.locally_reserved_ports:
@@ -43,15 +47,20 @@ class Connections:
             try:
                 print("Bind {} to port {}:{}".format(sock, host, port_to_try))
 
-                if sock.type == self.udp_server_socket:
-                    self.udp_server_socket.bind((host, port_to_try))
+                if mode == 'udpserver':
+                    self.udp_server_socket.bind((gethostname(), port_to_try))
                     self.udp_server_socket.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
+                    print('udp server binded')
 
-                elif sock.type == self.tcp_server_socket:
+                elif mode == 'tcpserver':
                     self.tcp_server_socket.bind((host, port_to_try))
+                    print('tcp server binded')
 
-                if local:
-                    self.locally_reserved_ports.append(port_to_try)
+                elif mode == 'udpclient':
+                    print('udpclient init here')
+
+                elif mode == 'tcpclient':
+                    print('tcpclient init here')
 
                 available_port = port_to_try
                 return available_port
@@ -68,8 +77,8 @@ class Connections:
         for port in range(100):
             try:
                 tcp_port = 10000 + port
-                print("Binding TCP-server socket on {}:{}".format(self.local_host, tcp_port))
-                self.tcp_server_socket.bind((self.local_host, tcp_port))
+                print("Binding TCP-server socket on {}:{}".format(self.localhost, tcp_port))
+                self.tcp_server_socket.bind((self.localhost, tcp_port))
                 self.tcp_server_port = tcp_port
                 break
             except Exception as e:
@@ -83,7 +92,7 @@ class Connections:
         for port in range(100):
             try:
                 udp_port = 10000 + port
-                print("Binding UDP-server socket to {}:{}".format(self.local_host, udp_port))
+                print("Binding UDP-server socket to {}:{}".format(self.localhost, udp_port))
                 self.udp_server_socket.bind((str(INADDR_ANY), udp_port))
                 self.udp_server_socket.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
                 self.udp_server_port = udp_port
@@ -91,24 +100,6 @@ class Connections:
             except Exception as e:
                 print(str(e))
 
-    def start_tcp_server(self):
-        """
-        start tcp server needed in proxy mode
-        :return:
-        """
-        # enable reuse address/port
-        self.tcp_server_socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
-        print('Starting proxy service on {}:{}'.format(self.local_host,self.tcp_server_port))
-        self.tcp_server_socket.listen(1)
-        while True:
-            print('Waiting connections to be forwarded')
-            print(self.tcp_server_socket.type)
-            self.client_tcp_socket, self.client_address = self.tcp_server_socket.accept()
-            msg = self.client_tcp_socket.recv(1024).decode('utf-8')
-            if msg:
-                print('Received message: {} from {}'.format(msg, self.client_address))
-                self.client_init_msg = msg
-            self.client_tcp_socket.close()
 
     def get(self):
         pass
@@ -118,8 +109,14 @@ class Connections:
 
     def send_tcp_message(self, message):
         if type(message) != bytes:
-            msg = message.encode('utf-8')
-        self.tcp_client_socket.send(message)
+            message = message.encode('utf-8')
+        try:
+            self.tcp_client_socket.send(message)
+        except IOError as e:
+            if e.errno == errno.EPIPE:
+                self.connect_tcp()
+
+    # Handle error
 
     def receive_tcp_message(self):
         return self.tcp_client_socket.recv(1024)

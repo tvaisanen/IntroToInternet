@@ -1,4 +1,3 @@
-import self as self
 
 
 class Features:

@@ -1,109 +1,216 @@
+
+from socket import socket, AF_INET, SOCK_STREAM, SOCK_DGRAM, gethostname
+from socket import SOL_SOCKET, SO_BROADCAST, SO_REUSEADDR
 from questions import answer
 from features import Features
-from connections import Connections
+import errno, struct, sys
+from random import randint
 
-""" TODO: Implementation of extra features, Proxy mode... """
 
-class ClientSession:
-    """ TODO: implement added Connection class here so things doesn't get confusing """
+class Session:
 
-    def __init__(self, udp_listener_port, target_host):
+    def __init__(self, local_udp_port, host_address, mode='client'):
+        if mode == 'client':
+            self.mode = mode
+            self.locally_reserved_ports = []
+            self.local_udp_port = local_udp_port
+            self.host_address = host_address
+            self.features = Features()
+            #self.add_features()
+            self.udp_server_socket = socket(AF_INET, SOCK_DGRAM)
+            self.udp_client_socket = socket(AF_INET, SOCK_DGRAM)
+            self.tcp_connection_socket = socket(AF_INET, SOCK_STREAM)
+            self.init_connections()
+            self.start_udp_communication()
+        if mode == 'proxy':
+            pass
+
+    def init_connections(self):
+        if self.mode == 'client':
+            self.scan_available_port_and_bind(type='udpserver')
+            # udp client has no neet to bind
+            # self.scan_available_port_and_bind(type='udpclient')
+            self.scan_available_port_and_bind(type='tcpclient')
+            message = self.build_handshake_message()
+            self.exchange_port_information()
+
+    def start_udp_communication(self):
         """
-        :param udp_listener_port: port for listening incoming UDP messages
-        :param target_host: host to connect with tcp for exchanging udp ports
+        starts udp transaction for exchanging questions/answers
         :return: none
-        initializes session parameters
         """
-        self.connections = Connections(target_host)
-        self.connections.bind_udp_server_socket()
-        self.init_feature_statuses()
-        self.exchange_port_information()
+        opening_statement = b"Ekki-ekki-ekki-ekki-PTANG."
+        packed_statement = struct.pack('!??HH64s', True, True, 64, 0, opening_statement)
+        self.send_udp_message_to_host(packed_statement)
+        self.send_udp_message_to_host(opening_statement)
+
+        # listen and response
+        EOM = False
+        while not EOM:
+            print('listening..')
+            try:
+                #msg_received, addr = self.udp_server_socket.recvfrom(70)
+                unpacked_msg = struct.unpack('!??HH64s', self.udp_server_socket.recvfrom(70)[0])
+                EOM = unpacked_msg[0]
+                ACK = unpacked_msg[1]
+                content_length = unpacked_msg[2]
+                data_remaining = unpacked_msg[3]
+                question = str(unpacked_msg[4].decode('utf-8'))
+
+                answer_to_question = answer(question)
+                 # tell the user what's happening
+                print("Message received: {}".format(question))
+                print("Answer to the question: {}".format(answer_to_question))
+                # reply to the question
+                byte_answer = answer_to_question.encode('utf-8')
+                #self.host_address = ''
+                packed_answer = struct.pack('!??HH64s', True, False, 64, 0, byte_answer)
+
+                self.send_udp_message_to_host(packed_answer)
+
+            except KeyboardInterrupt as KI:
+                print(msg_received)
+                if (input('Q?') == 'y'):
+                    sys.exit(1)
+
+            except Exception as e:
+                print("ex. "+str(e))
+
+    def scan_available_port_and_bind(self, type):
+        """
+        :param socket: socket to bind
+        :param host:  host to bind the socket
+        :param type: what mode to bind the socket
+        :return: port
+        """
+        for port in range(100):
+
+            port_to_try = 10000 + port
+
+            try:
+                if type == 'udpserver':
+                    print("Bind {} to port {}:{}".format(self.udp_server_socket, gethostname(), port_to_try))
+                    self.udp_server_socket.bind(('', port_to_try))
+                    self.udp_server_socket.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
+                    if port_to_try in self.locally_reserved_ports:
+                        port_to_try += 1
+                    print('udp server binded')
+
+                elif type == 'tcpserver':
+                    print("Bind {} to port {}:{}".format(self.tcp_server_socket, gethostname(), port_to_try))
+                    self.tcp_server_socket.bind((host, port_to_try))
+                    if port_to_try in self.locally_reserved_ports:
+                        port_to_try += 1
+                    print('tcp server binded')
+
+                elif type == 'tcpclient':
+                    self.tcp_connection_socket.connect((self.host_address, port_to_try))
+                    print("Bind {} to port {}:{}".format(self.tcp_connection_socket, self.host_address, port_to_try))
+                    self.host_tcp_port = port_to_try
+                    print('tcpclient init here')
+
+                available_port = port_to_try
+                return available_port
+                break
+            except Exception as e:
+                print(str(e))
+
+    def build_handshake_message(self):
+
+        # builds the init message which is sent with tcp to negotiate extra features
+        #:return: built message in bytes encoded to 'utf-8'
+
+        features = ('{} {} {} {}'.format(self.features.get_multipart_status()[1],
+                                         self.features.get_confidentiality_status()[1],
+                                         self.features.get_integrity_status()[1],
+                                         self.features.get_availability_status()[1]))
+
+        features = features.replace('None', '').lstrip()
+        message = 'HELO {} {}\r\n'.format(self.local_udp_port, features)
+        print(message)
+        return bytes(message.encode('utf-8'))
 
     def exchange_port_information(self):
         """
         TODO: ADD EXTRA FEATURES
         Get hosts port for udp-connection
         """
-        # connect to the host
-        self.connections.connect_tcp()
-
         # craft the message and send it
-        self.connections.send_tcp_message(self.build_handshake_message())
+        self.send_tcp_message(self.build_handshake_message())
 
         # receive answer and parse port from it
-        received = self.connections.receive_tcp_message()
-        self.connections.host_udp_port = int(received.decode('utf-8').split(' ')[1].split('\r')[0])
+        received = self.tcp_connection_socket.recv(1024)
+        try:
+            self.host_udp_port = int(received.decode('utf-8').split(' ')[1].split('\r')[0])
+        except ValueError as VE:
+            print('uusiksi portin parse')
 
         # tell the user what's happening
         print("Received msg: {}.".format(received))
-        print("Host listens on port: {}.".format(self.connections.host_udp_port))
+        print("Host listens on port: {}.".format(self.host_udp_port))
         print("Clients UDP port: {} has been sent.\n\
-               Closing TCP-socket..".format(self.connections.udp_server_port))
+               Closing TCP-socket..".format(self.local_udp_port))
 
         # close connection
-        self.connections.close_tcp()
+        self.tcp_connection_socket.close()
 
-    def start_udp_transaction(self):
+    def send_tcp_message(self, message):
+        if type(message) != bytes:
+            message = message.encode('utf-8')
+        try:
+            self.tcp_connection_socket.send(message)
+        except IOError as e:
+            if e.errno == errno.EPIPE:
+                self.tcp_connection_socket.connect((self.host_address, self.host_tcp_port))
+        print('message sent')
+
+    def send_udp_message_to_host(self, message):
         """
-        starts udp transaction for exchanging questions/answers
-        :return: none
+        :param message: message to sent
+        :param sock: UDP socket to use
+
         """
-        opening_statement = "Ekki-ekki-ekki-ekki-PTANG".encode('utf-8')
-        self.send_a_message(opening_statement)
-        print('sent: {}.'.format(opening_statement))
+        if type(message) != bytes:
+            message = message.encode('utf-8')
+        self.udp_client_socket.sendto(message, (self.host_address, self.host_udp_port))
+        print("sent: {} to {}:{}".format(message, self.host_address, self.host_udp_port))
 
-        # listen and response
-        while True:
-            print('listening..')
-            try:
-                # get the received message and get the answer to the question
-                msg_received = self.udp_listener_sock.recvfrom(1024)[0].decode('utf-8')
-                answer_to_question = answer(msg_received)
-                # tell the user what's happening
-                print("Message received: {}".format(msg_received))
-                print("Answer to the question: {}.".format(answer_to_question))
-                # reply to the question
-                self.send_a_message(answer_to_question.encode('utf-8'))
+    def add_features(self):
+        ## allow only one feature
+        if input('Add features? [y/n]') == 'y':
+            if input('Add multipart feature? [y/n]: ') == 'y':
+                self.features.set_multipart_status(True)
+            if input('Add confidentiality feature? [y/n]: ') == 'y':
+                self.features.set_confidentiality_status(True)
+            if input('Add ingegrity to feature? [y/n]: ') == 'y':
+                self.features.set_integrity_status(True)
+            if input('Add availability feature? [y/n]: ') == 'y':
+                self.features.set_availability_status(True)
+        else:
+            print('No features to add.')
 
-            except Exception as e:
-                print(str(e))
+    def random_decryption_key(self):
+        keys = []
+        for i in range(20):
+            keys.append(str(randint(0, 9)))
+        keys_as_string = "".join(keys)
+        self.decryption_key = keys_as_string
 
+    def encrypt_message(self, message_to_encrypt):
+        crypted = []
+        for i in range(len(message_to_encrypt)):
+            encrypted_char = ord(message_to_encrypt[i]) + ord(self.decryption_key[i])
+            crypted.append(chr(encrypted_char))
+        crypted = "".join(crypted)
+        return crypted
 
-class ProxySession:
+    def decrypt_message(self, message_to_decrypt):
+        decrypted = []
+        for i in range(len(message_to_decrypt)):
+            decrypted_char = ord(message_to_decrypt[i]) - ord(self.decryption_key[i])
+            decrypted.append(chr(decrypted_char))
+        decrypted = "".join(decrypted)
+        return decrypted
 
-    """ TODO: WHOLE CLASS, implement Connection class here so things doesn't get confusing """
-    def __init__(self, host):
-        self.connections = Connections(host)
-        self.connections.start_tcp_server()
-        # get features from this message
-        print(self.connections.client_init_msg)
-
-
-    def forward_tcp_message(self):
-        pass
-
-    def handle_tcp_message(self, socket):
-        pass
-
-    def forward_udp_message(self):
-        pass
-
-    def handle_forwarding(self):
-        pass
-
-""""""
-def build_handshake_message(self):
-    """
-    builds the init message which is sent with tcp to negotiate extra features
-    :return: built message in bytes encoded to 'utf-8'
-    """
-    features = ('{} {} {} {}'.format(self.get_multipart_status()[1],
-                                     self.get_confidentiality_status()[1],
-                                     self.get_integrity_status()[1],
-                                     self.get_availability_status()[1])).replace('None ', '').lstrip()
-
-    message = 'HELO {} {}\r\n'.format(self.udp_listener_port, features)
-    print(message)
-    return bytes(message.encode('utf-8'))
-""""""
-
+    def unpack_udp_message(self, msg):
+        data = struct.unpack(msg)

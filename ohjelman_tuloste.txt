@@ -1,0 +1,22 @@
+$ python3 main.py client 10000 ii.virtues.fi    
+
+Bind <socket.socket fd=4, family=AddressFamily.AF_INET, type=SocketKind.SOCK_DGRAM, proto=0, laddr=('0.0.0.0', 0)> to port tvaisanen-ThinkPad:10000
+udp server binded
+Bind <socket.socket fd=6, family=AddressFamily.AF_INET, type=SocketKind.SOCK_STREAM, proto=0, laddr=('10.20.194.189', 40936), raddr=('185.38.3.247', 10000)> to port ii.virtues.fi:10000
+tcpclient init here
+HELO 10000 
+
+HELO 10000 
+
+message sent
+Received msg: b'HELO 12345\r\n'.
+Host listens on port: 12345.
+Clients UDP port: 10000 has been sent.
+               Closing TCP-socket..
+sent: b'\x00\x00\x00F\x00\x00Ekki-ekki-ekki-ekki-PTANG.\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' to ii.virtues.fi:12345
+listening..
+Message received: What is the capital of Assyria?
+
+# tämä viesti lähetetään testauksen vuoksi paikalliselle serverille "ii.virtues.fi" on muutettu '' 
+Answer to the question: I don't know that.
+sent: b"\x01\x00\x00F\x00\x00I don't know that.\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" to :12345
