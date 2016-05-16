@@ -29,7 +29,7 @@ class Session:
         if self.mode == 'client':
             self.scan_available_port_and_bind(type='udpserver')
             # udp client has no neet to bind
-            # self.scan_available_port_and_bind(type='udpclient')
+            # self.scan_available_port_and_bind(type='')
             self.scan_available_port_and_bind(type='tcpclient')
             message = self.build_handshake_message()
             self.exchange_port_information()
@@ -39,18 +39,20 @@ class Session:
         starts udp transaction for exchanging questions/answers
         :return: none
         """
-        opening_statement = b"Ekki-ekki-ekki-ekki-PTANG."
-        packed_statement = struct.pack('!??HH64s', True, True, 64, 0, opening_statement)
+        opening_statement = "Ekki-ekki-ekki-ekki-PTANG.".encode('utf-8')
+        packed_statement = struct.pack('!??HH64s', True, True, len(opening_statement), 0, opening_statement)
         self.send_udp_message_to_host(packed_statement)
-        self.send_udp_message_to_host(opening_statement)
 
         # listen and response
         EOM = False
         while not EOM:
             print('listening..')
+            if EOM:
+                break
             try:
-                #msg_received, addr = self.udp_server_socket.recvfrom(70)
-                unpacked_msg = struct.unpack('!??HH64s', self.udp_server_socket.recvfrom(70)[0])
+                msg_received, addr = self.udp_server_socket.recvfrom(70)
+                unpacked_msg = struct.unpack('!??HH64s', msg_received)
+                print("received: {}".format(unpacked_msg))
                 EOM = unpacked_msg[0]
                 ACK = unpacked_msg[1]
                 content_length = unpacked_msg[2]
@@ -59,12 +61,14 @@ class Session:
 
                 answer_to_question = answer(question)
                  # tell the user what's happening
-                print("Message received: {}".format(question))
+                print("----------------------------------------")
+                print("Question received: {}".format(question))
                 print("Answer to the question: {}".format(answer_to_question))
+                print("----------------------------------------")
                 # reply to the question
                 byte_answer = answer_to_question.encode('utf-8')
                 #self.host_address = ''
-                packed_answer = struct.pack('!??HH64s', True, False, 64, 0, byte_answer)
+                packed_answer = struct.pack('!??HH64s', True, True, len(byte_answer), 0, byte_answer)
 
                 self.send_udp_message_to_host(packed_answer)
 
@@ -92,6 +96,7 @@ class Session:
                     print("Bind {} to port {}:{}".format(self.udp_server_socket, gethostname(), port_to_try))
                     self.udp_server_socket.bind(('', port_to_try))
                     self.udp_server_socket.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
+                    self.local_udp_port = port_to_try
                     if port_to_try in self.locally_reserved_ports:
                         port_to_try += 1
                     print('udp server binded')
@@ -172,8 +177,9 @@ class Session:
         """
         if type(message) != bytes:
             message = message.encode('utf-8')
-        self.udp_client_socket.sendto(message, (self.host_address, self.host_udp_port))
-        print("sent: {} to {}:{}".format(message, self.host_address, self.host_udp_port))
+        print("sent: {}".format(struct.unpack('!??HH64s', message)))
+        self.udp_server_socket.sendto(message, (self.host_address,self.host_udp_port))
+        #print("sent: {} to {}:{}".format(message, self.host_address, self.host_udp_port))
 
     def add_features(self):
         ## allow only one feature
