@@ -7,6 +7,14 @@ import errno, struct, sys
 from random import randint
 
 
+from socket import socket, AF_INET, SOCK_STREAM, SOCK_DGRAM, gethostname
+from socket import SOL_SOCKET, SO_BROADCAST, SO_REUSEADDR
+from questions import answer
+from features import Features
+import errno, struct, sys
+from random import randint
+
+
 class Session:
 
     def __init__(self, local_udp_port, host_address, mode='client'):
@@ -50,29 +58,36 @@ class Session:
             if EOM:
                 break
             try:
-                msg_received, addr = self.udp_server_socket.recvfrom(70)
-                unpacked_msg = struct.unpack('!??HH64s', msg_received)
-                print("received: {}".format(unpacked_msg))
-                EOM = unpacked_msg[0]
-                ACK = unpacked_msg[1]
-                content_length = unpacked_msg[2]
-                data_remaining = unpacked_msg[3]
-                question = str(unpacked_msg[4].decode('utf-8'))
-
-                # TODO: looppa tässä jos content_length > 0
-
-                answer_to_question = answer(question)
+				question = ""
+				while True:
+					msg_received, addr = self.udp_server_socket.recvfrom(70)
+					unpacked_msg = struct.unpack('!??HH64s', msg_received)
+					print("received: {}".format(unpacked_msg))
+					EOM = unpacked_msg[0]
+					ACK = unpacked_msg[1]
+					content_length = unpacked_msg[2]
+					data_remaining = unpacked_msg[3]
+					question += str(unpacked_msg[4].decode('utf-8'))
+					print(question)
+					if content_length < 64:
+						break
+			
+				# TODO: looppa tas jos content_length > 0
+				
+					
+	
+				answer_to_question = answer(question)
                  # tell the user what's happening
-                print("----------------------------------------")
-                print("Question received: {}".format(question))
-                print("Answer to the question: {}".format(answer_to_question))
-                print("----------------------------------------")
-                # reply to the question
-                byte_answer = answer_to_question.encode('utf-8')
-                #self.host_address = ''
-                packed_answer = struct.pack('!??HH64s', EOM, True, len(byte_answer), 0, byte_answer)
+				print("----------------------------------------")
+				print("Question received: {}".format(question))
+				print("Answer to the question: {}".format(answer_to_question))
+				print("----------------------------------------")
+				# reply to the question
+				byte_answer = answer_to_question.encode('utf-8')
+				#self.host_address = ''
+				packed_answer = struct.pack('!??HH64s', EOM, True, len(byte_answer), 0, byte_answer)
 
-                self.send_udp_message_to_host(packed_answer)
+				self.send_udp_message_to_host(packed_answer)
 
             except KeyboardInterrupt as KI:
                 print(msg_received)
