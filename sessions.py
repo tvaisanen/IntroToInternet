@@ -1,4 +1,3 @@
-
 from socket import socket, AF_INET, SOCK_STREAM, SOCK_DGRAM, gethostname
 from socket import SOL_SOCKET, SO_BROADCAST, SO_REUSEADDR
 from questions import answer
@@ -45,21 +44,32 @@ class Session:
 
         # listen and response
         EOM = False
+        multip = False
         while not EOM:
             print('listening..')
             if EOM:
                 break
             try:
-                msg_received, addr = self.udp_server_socket.recvfrom(70)
-                unpacked_msg = struct.unpack('!??HH64s', msg_received)
-                print("received: {}".format(unpacked_msg))
-                EOM = unpacked_msg[0]
-                ACK = unpacked_msg[1]
-                content_length = unpacked_msg[2]
-                data_remaining = unpacked_msg[3]
-                question = str(unpacked_msg[4].decode('utf-8'))
-
-                # TODO: looppa tässä jos content_length > 0
+                
+                while True:
+                    question = ''
+                    msg_received, addr = self.udp_server_socket.recvfrom(70)
+                    unpacked_msg = struct.unpack('!??HH64s', msg_received)
+                    print("received: {}".format(unpacked_msg))
+                    EOM = unpacked_msg[0]
+                    ACK = unpacked_msg[1]
+                    content_length = unpacked_msg[2]
+                    data_remaining = unpacked_msg[3]
+                    question = str(unpacked_msg[4].decode('utf-8'))
+                    if multip == True:                       
+                        question = firstprt + question
+                        multip = False
+                    if content_length < 64:
+                        break
+                    else:
+                        firstprt = question
+                        multip = True
+                        continue
 
                 answer_to_question = answer(question)
                  # tell the user what's happening
@@ -68,6 +78,26 @@ class Session:
                 print("Answer to the question: {}".format(answer_to_question))
                 print("----------------------------------------")
                 # reply to the question
+                
+                anstr = str(answer_to_question)
+                #if answer > 64, send in parts
+                if len(anstr) > 64:
+                    msglist = []
+                    while(len(anstr)>0):
+                        part = anstr[:64] 
+                        anstr = anstr[64:]
+                        msglist.append(part) 
+                    msglength = len(msglist[0])
+                    xcounter = 0
+                    for onemsg in msglist:
+                        byte_answer = onemsg.encode('utf-8')
+                        packed_answer = struct.pack('!??HH64s', EOM, True, len(byte_answer), msglength, byte_answer)
+                        print(onemsg)
+                        self.send_udp_message_to_host(packed_answer)
+                        msglength = 64-len(msglist[xcounter])
+                        if msglength < 0:
+                            msglength = 0
+                    continue
                 byte_answer = answer_to_question.encode('utf-8')
                 #self.host_address = ''
                 packed_answer = struct.pack('!??HH64s', EOM, True, len(byte_answer), 0, byte_answer)
@@ -175,7 +205,6 @@ class Session:
         """
         :param message: message to sent
         :param sock: UDP socket to use
-
         """
         if type(message) != bytes:
             message = message.encode('utf-8')
