@@ -23,8 +23,8 @@ def test_clientsession(udp_port, target_host):
     session = Session(udp_port, target_host)
 
 
-def test_proxysession(host):
-    proxy = Session(host)
+def test_proxysession(udp_port, host):
+    proxy = Session(udp_port, host)
 
 
 if __name__ == '__main__':
@@ -32,4 +32,4 @@ if __name__ == '__main__':
     mode = args.mode
     host = args.target_host
     udp_port = args.udp_port
-    test_clientsession(udp_port, host)
+    session = Session(udp_port, host, mode)
