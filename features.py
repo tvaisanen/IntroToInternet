@@ -1,4 +1,4 @@
-
+""" tänne jäi muuutkin featuret näkyviin, mutta ei keretty implementoida"""
 
 class Features:
 
@@ -11,7 +11,6 @@ class Features:
     def set_multipart_status(self, status):
         self.multipart_status = status
 
-
     def get_multipart_status(self):
         """
         :return: (boolean, flag) flag=None if false
@@ -21,10 +20,8 @@ class Features:
         else:
             return self.multipart_status, None
 
-
     def set_confidentiality_status(self, status):
         self.confidentiality_status = status
-
 
     def get_confidentiality_status(self):
         """
@@ -35,10 +32,8 @@ class Features:
         else:
             return self.confidentiality_status, None
 
-
     def set_integrity_status(self, status):
         self.integrity_status = status
-
 
     def get_integrity_status(self):
         """
@@ -49,10 +44,8 @@ class Features:
         else:
             return self.integrity_status, None
 
-
     def set_availability_status(self, status):
         self.availability_status = status
-
 
     def get_availability_status(self):
         """
